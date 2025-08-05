@@ -1,8 +1,9 @@
 ## 某大学实习系统签到脚本
 
-请自行安装python，并安装requests库
+请自行安装python，并安装requests库和pycryptodome库
 ```
 pip install requests
+pip install pycryptodome
 ```
 找到脚本所在目录
 ```
