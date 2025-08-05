@@ -8,7 +8,9 @@ from Crypto.Cipher import AES
 import hashlib
 import base64
 import json
-
+import smtplib  
+from email.mime.text import MIMEText  
+from email.header import Header  
 
 class Encryptor:  
     """  
@@ -314,6 +316,42 @@ def run_background(lng, lat):
         
         time.sleep(30) # 每30秒检查一次
 
+# --- 邮件配置 ---  
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 465  # 对于SSL连接，Gmail 使用 465 端口
+SENDER_EMAIL = "xfbmjzl2a@gmail.com"  # 你的完整 Gmail 地址
+SENDER_PASSWORD = "paukmhcsvcgjibdi"  # 你刚刚生成的 16 位应用专用密码 (去掉空格，写成xxxxxxxxxxxxxxxx)
+RECEIVER_EMAIL = "xfbmjzl2a@gmail.com"  # 接收提醒的邮箱 (可以和发件人是同一个)
+
+def send_error_email(error_message):  
+    """当出现错误时，发送邮件通知"""  
+    subject = "定时签到程序出错通知"  
+    
+    # 邮件内容  
+    body = f"""  
+    <h3>你的定时签到程序遇到了问题：</h3>  
+    <p><b>时间:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>  
+    <p><b>错误详情:</b></p>  
+    <pre style="background-color: #f0f0f0; padding: 10px; border-radius: 5px;">{error_message}</pre>  
+    <p>请及时检查程序运行状态。</p>  
+    """  
+    
+    msg = MIMEText(body, 'html', 'utf-8')  
+    msg['From'] = Header(f"签到程序 <{SENDER_EMAIL}>")  
+    msg['To'] = Header(f"管理员 <{RECEIVER_EMAIL}>")  
+    msg['Subject'] = Header(subject, 'utf-8')  
+
+    try:  
+        print("正在尝试发送错误通知邮件...")  
+        # 使用SSL加密连接  
+        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:  
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)  
+            server.sendmail(SENDER_EMAIL, [RECEIVER_EMAIL], msg.as_string())  
+        print("错误通知邮件发送成功。")  
+    except Exception as e:  
+        print(f"邮件发送失败！错误: {e}")  
+
+
 if (__name__ == "__main__"):
     lng = "116.36239963107639"
     lat = "39.891154513888885"
@@ -332,8 +370,14 @@ if (__name__ == "__main__"):
                 pass
             else:  
                 print("未能获取到包含宣武医院签到信息，签到流程中止。") 
-        elif (operation == "3"):  
-            run_background(lng, lat)  
+        elif (operation == "3"): 
+            try: 
+                run_background(lng, lat)  
+            except Exception as e:
+                # 捕获签到过程中可能出现的其他异常  
+                error_msg = f"签到过程中发生未知错误: {e}"  
+                print(error_msg)  
+                send_error_email(error_msg) # 发送邮件通知 
         elif (operation == "0"):  
             break  
         else:
