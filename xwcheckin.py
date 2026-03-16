@@ -155,7 +155,7 @@ def login(username, password):
     except requests.exceptions.RequestException as e:  
         print(f"Request failed: {e}")  
 
-def get_attendence_info(lng, lat):  
+def get_attendence_info(lng, lat, location):  
     if not os.path.exists("logininfo.txt"):  
         print("请先登录获取token")  
         return None  
@@ -195,7 +195,7 @@ def get_attendence_info(lng, lat):
 
             if decrypted_data and decrypted_data.get("code") == 0:  
                 for item in decrypted_data.get("data", {}).get("list", []):  
-                    if "宣武" in item.get("attendance_config_name", ""):  
+                    if location in item.get("attendance_config_name", ""):  
                         print("当前属于：" + item["attendance_config_name"])  
                         return item["attendance_config_id"]  
                 print("未找到包含'宣武'的签到项")  
@@ -264,7 +264,7 @@ def check_in(lng, lat, attendance_id):
     except requests.exceptions.RequestException as e:  
         print(f"Request failed: {e}")  
 
-def run_background(lng, lat):
+def run_background(lng, lat, location):
     """修改了之前有问题的默认签到时间，并且让签到时间在默认时间附近随机浮动，以免过于规整，而被发现"""
 
     schedule_file = "schedule.txt"
@@ -284,7 +284,11 @@ def run_background(lng, lat):
         nonlocal today
         today = datetime.now().date()
         scheduled_jobs.clear()
-        print(f"\n新的一天 ({today}), 重新生成随机签到时间...")
+        with open("logininfo.txt", "r", encoding="utf-8") as f:  
+            content = [line.strip() for line in f.readlines()]
+            j, i, username, password = content 
+            login(username, password)
+        print(f"\n新的一天 ({today}), 重新登陆，重新生成随机签到时间...")
         for t_str in target_times:
             try:
                 base_time = datetime.strptime(t_str, "%H:%M").time()
@@ -307,7 +311,7 @@ def run_background(lng, lat):
         for t_str, job_info in scheduled_jobs.items():
             if not job_info["executed"] and now >= job_info["time"]:
                 print(f"\n到达预定时间 {job_info['time'].strftime('%H:%M:%S')} (原定 {t_str})，开始执行签到...")
-                attendance_id = get_attendence_info(lng, lat)
+                attendance_id = get_attendence_info(lng, lat, location)
                 if (attendance_id != 0):
                     check_in(lng, lat, attendance_id)
                 else:
@@ -353,8 +357,18 @@ def send_error_email(error_message):
 
 
 if (__name__ == "__main__"):
-    lng = "116.36239963107639"
-    lat = "39.891154513888885"
+    basic_info = {"宣武": ["116.36239963107639", "39.891154513888885"],
+                "儿童医院":["116.35457", "39.91253"]}
+
+    location = input("请输入签到位置（1.宣武/2.儿童医院）：")
+    if (location == "1"):
+        location = "宣武"
+    elif (location == "2"):
+        location = "儿童医院"
+    else:
+        print("请输入正确数字！")
+        exit()
+    lng, lat = basic_info[location]
 
     while True: 
         operation = input("1.登录\n2.执行手动签到\n3.定时程序\n0.退出\n请输入数字选择操作并回车: ")  
@@ -364,7 +378,7 @@ if (__name__ == "__main__"):
             login(user, passwd)  
         elif (operation == "2"):  
             print("开始执行手动签到流程...")   
-            attendance_id = get_attendence_info(lng, lat)  
+            attendance_id = get_attendence_info(lng, lat, location)  
             if (attendance_id != 0):  
                 check_in(lng, lat, attendance_id)
                 pass
@@ -372,7 +386,7 @@ if (__name__ == "__main__"):
                 print("未能获取到包含宣武医院签到信息，签到流程中止。") 
         elif (operation == "3"): 
             try: 
-                run_background(lng, lat)  
+                run_background(lng, lat, location)  
             except Exception as e:
                 # 捕获签到过程中可能出现的其他异常  
                 error_msg = f"签到过程中发生未知错误: {e}"  
